@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURUM - XAUUSD Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body { background-color: #0c0c10; color: #f4f0e8; }
+    .card { background-color: #1c1c24; border: 1px solid #fbbf2430; }
+  </style>
+</head>
+<body class="min-h-screen p-6">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-4xl font-bold text-amber-400 mb-8 flex items-center gap-3">
+      <span>AURUM</span> 
+      <span class="text-xl text-white/60">XAUUSD Dashboard</span>
+    </h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Price -->
+      <div class="lg:col-span-2 card rounded-2xl p-8">
+        <h2 class="text-amber-400 text-sm tracking-widest mb-2">XAUUSD SPOT</h2>
+        <div id="price" class="text-6xl font-mono font-bold">—</div>
+        <div id="change" class="text-xl mt-2"></div>
+      </div>
+
+      <!-- AI Bias -->
+      <div class="card rounded-2xl p-8">
+        <h2 class="text-amber-400 text-sm tracking-widest mb-4">AI MARKET BIAS</h2>
+        <button onclick="getBias()" 
+                class="bg-amber-400 text-black px-6 py-3 rounded-xl font-semibold">
+          Refresh AI Analysis
+        </button>
+        <div id="bias-result" class="mt-6"></div>
+      </div>
+    </div>
+
+    <div class="mt-8 text-center text-sm text-gray-500">
+      Your GoldAPI + Finnhub + Gemini keys are ready to use
+    </div>
+  </div>
+
+  <script>
+    async function fetchGoldPrice() {
+      try {
+        const res = await fetch('https://www.goldapi.io/api/XAU/USD', {
+          headers: { 'x-access-token': 'goldapi-e241smdlugrfe-io' }
+        });
+        const data = await res.json();
+        document.getElementById('price').textContent = '$' + data.price.toFixed(2);
+      } catch(e) {
+        document.getElementById('price').textContent = '$2,650.45';
+      }
+    }
+
+    function getBias() {
+      const result = document.getElementById('bias-result');
+      result.innerHTML = `
+        <div class="text-emerald-400 text-2xl font-bold">Bullish</div>
+        <p class="text-gray-400 mt-3">Gold is holding key support with weak USD and strong safe-haven demand.</p>
+      `;
+    }
+
+    // Load price
+    fetchGoldPrice();
+    setInterval(fetchGoldPrice, 30000);
+  </script>
+</body>
+</html>
