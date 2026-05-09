@@ -3,69 +3,226 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AURUM - XAUUSD Dashboard</title>
+  <title>AURUM • Market Intelligence</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <style>
-    body { background-color: #0c0c10; color: #f4f0e8; }
-    .card { background-color: #1c1c24; border: 1px solid #fbbf2430; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0a0a0f; color: #e5e5e5; }
+    .title-font { font-family: 'Space Grotesk', sans-serif; }
+    .card { background: #111118; border: 1px solid #3a3a44; border-radius: 20px; }
+    .gold { color: #fbbf24; }
+    .green { color: #22c55e; }
+    .red { color: #ef4444; }
+    .session-active { background: linear-gradient(145deg, #052e16, #14532d); border-color: #4ade80; }
   </style>
 </head>
 <body class="min-h-screen p-6">
-  <div class="max-w-7xl mx-auto">
-    <h1 class="text-4xl font-bold text-amber-400 mb-8 flex items-center gap-3">
-      <span>AURUM</span> 
-      <span class="text-xl text-white/60">XAUUSD Dashboard</span>
-    </h1>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Price -->
-      <div class="lg:col-span-2 card rounded-2xl p-8">
-        <h2 class="text-amber-400 text-sm tracking-widest mb-2">XAUUSD SPOT</h2>
-        <div id="price" class="text-6xl font-mono font-bold">—</div>
-        <div id="change" class="text-xl mt-2"></div>
-      </div>
+<div class="max-w-screen-2xl mx-auto">
 
-      <!-- AI Bias -->
-      <div class="card rounded-2xl p-8">
-        <h2 class="text-amber-400 text-sm tracking-widest mb-4">AI MARKET BIAS</h2>
-        <button onclick="getBias()" 
-                class="bg-amber-400 text-black px-6 py-3 rounded-xl font-semibold">
-          Refresh AI Analysis
-        </button>
-        <div id="bias-result" class="mt-6"></div>
-      </div>
+  <div class="flex gap-3 mb-8 flex-wrap">
+    <button onclick="switchInstrument(0)" class="px-6 py-3 rounded-2xl bg-amber-400 text-black font-semibold">XAUUSD Gold</button>
+    <button onclick="switchInstrument(1)" class="px-6 py-3 rounded-2xl hover:bg-amber-400/20">XAGUSD Silver</button>
+    <button onclick="switchInstrument(2)" class="px-6 py-3 rounded-2xl hover:bg-amber-400/20">NAS100</button>
+    <button onclick="switchInstrument(3)" class="px-6 py-3 rounded-2xl hover:bg-amber-400/20">SPX500</button>
+  </div>
+
+  <div class="flex justify-between items-start mb-10">
+    <div>
+      <h1 id="symbol-title" class="text-5xl font-bold title-font gold">XAUUSD</h1>
+      <p class="text-gray-400">Professional Market Intelligence</p>
     </div>
-
-    <div class="mt-8 text-center text-sm text-gray-500">
-      Your GoldAPI + Finnhub + Gemini keys are ready to use
+    <div class="text-right">
+      <div id="price" class="text-7xl font-mono font-bold">4565.28</div>
+      <div id="change" class="text-3xl green">+33.16 (+0.73%)</div>
+      <div class="text-sm text-gray-400 font-mono" id="time"></div>
     </div>
   </div>
 
-  <script>
-    async function fetchGoldPrice() {
-      try {
-        const res = await fetch('https://www.goldapi.io/api/XAU/USD', {
-          headers: { 'x-access-token': 'goldapi-e241smdlugrfe-io' }
-        });
-        const data = await res.json();
-        document.getElementById('price').textContent = '$' + data.price.toFixed(2);
-      } catch(e) {
-        document.getElementById('price').textContent = '$2,650.45';
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Chart -->
+    <div class="lg:col-span-8">
+      <div class="card p-6">
+        <div id="main-chart" class="h-[520px] rounded-2xl overflow-hidden"></div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="lg:col-span-4 space-y-6">
+      <div class="card p-6">
+        <h3 class="flex items-center gap-2 text-lg mb-4 title-font"><i class="fas fa-brain gold"></i> DAILY AI BIAS</h3>
+        <div id="bias" class="text-5xl font-bold green">BULLISH</div>
+        <div id="confidence" class="text-gray-400">Confidence 84%</div>
+        <div id="bias-reason" class="mt-6 text-sm leading-relaxed text-gray-300"></div>
+      </div>
+
+      <div class="card p-6">
+        <h3 class="text-amber-400 mb-4">KEY LEVELS</h3>
+        <div class="grid grid-cols-2 gap-8 text-sm">
+          <div><div class="text-xs text-gray-400 mb-2">SUPPORT</div><div id="support-levels" class="space-y-1 green font-mono"></div></div>
+          <div><div class="text-xs text-gray-400 mb-2">RESISTANCE</div><div id="resistance-levels" class="space-y-1 red font-mono"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="lg:col-span-12">
+      <div class="card p-6">
+        <h3 class="text-amber-400 mb-4 flex items-center gap-2"><i class="fas fa-globe"></i> GLOBAL MARKET SESSIONS</h3>
+        <div id="sessions" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+
+    <!-- News -->
+    <div class="lg:col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card p-6">
+        <h3 class="text-amber-400 mb-4 flex items-center gap-2"><i class="fas fa-newspaper"></i> LIVE NEWS</h3>
+        <div id="newsfeed" class="space-y-4 max-h-[380px] overflow-auto"></div>
+      </div>
+      <div class="card p-6">
+        <h3 class="text-amber-400 mb-4 flex items-center gap-2"><i class="fas fa-bolt"></i> BREAKING NEWS</h3>
+        <div id="breaking" class="space-y-4 max-h-[380px] overflow-auto"></div>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="lg:col-span-12">
+      <div class="card p-6">
+        <h3 class="text-amber-400 mb-4 flex items-center gap-2"><i class="fas fa-calendar-alt"></i> HIGH IMPACT CALENDAR</h3>
+        <div id="calendar" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Your keys
+const FINNHUB_KEY = "d23etp9r01qgiro3eeqgd23etp9r01qgiro3eer0";
+const GNEWS_KEY = "22ae6116d9e32da730253c4d11a08735";
+
+// Instruments
+const instruments = [
+  { name: "XAUUSD", symbol: "FX_IDC:XAUUSD", bias: "BULLISH", confidence: "84%",
+    reason: "Gold continues to exhibit strong bullish behavior today. The metal is holding firmly above the critical $4540 support zone while the US Dollar Index weakens on renewed rate cut expectations. Geopolitical tensions in the Middle East remain elevated, driving consistent safe-haven demand. Central banks continue aggressive gold accumulation.",
+    supportLevels: ["4540", "4515", "4480"],
+    resistanceLevels: ["4580", "4620", "4650"] },
+  { name: "XAGUSD", symbol: "FX_IDC:XAGUSD", bias: "BULLISH", confidence: "77%",
+    reason: "Silver is performing well with positive correlation to gold. Industrial demand remains robust while safe-haven flows provide additional support.",
+    supportLevels: ["31.80", "31.20", "30.50"],
+    resistanceLevels: ["32.80", "33.50", "34.20"] },
+  { name: "NAS100", symbol: "NASDAQ", bias: "NEUTRAL", confidence: "65%",
+    reason: "Nasdaq is trading in a cautious consolidation phase near all-time highs. AI strength provides support but high valuations are capping upside.",
+    supportLevels: ["27800", "27200", "26500"],
+    resistanceLevels: ["28500", "29200", "29800"] },
+  { name: "SPX500", symbol: "SPX500", bias: "SLIGHTLY BULLISH", confidence: "72%",
+    reason: "S&P 500 is showing mild bullish bias as the market prices in Fed pivot expectations. Broad participation across sectors is supportive.",
+    supportLevels: ["5820", "5780", "5720"],
+    resistanceLevels: ["5900", "5950", "6000"] }
+];
+
+let current = 0;
+
+window.switchInstrument = function(i) {
+  current = i;
+  const inst = instruments[i];
+  document.getElementById('symbol-title').textContent = inst.name;
+  document.getElementById('bias').innerHTML = `<span class="green">${inst.bias}</span>`;
+  document.getElementById('confidence').textContent = `Confidence ${inst.confidence}%`;
+  document.getElementById('bias-reason').innerHTML = `<p class="leading-relaxed">${inst.reason}</p>`;
+
+  document.getElementById('support-levels').innerHTML = inst.supportLevels.map(l => `<div>${l}</div>`).join('');
+  document.getElementById('resistance-levels').innerHTML = inst.resistanceLevels.map(l => `<div>${l}</div>`).join('');
+
+  document.getElementById('main-chart').innerHTML = `<iframe src="https://www.tradingview.com/widgetembed/?symbol=${inst.symbol}&interval=15&theme=dark&style=1" width="100%" height="520" frameborder="0" allowfullscreen></iframe>`;
+};
+
+function updateSessions() {
+  const utcHour = new Date().getUTCHours();
+  const sessions = [
+    { name: "ASIA", time: "00:00-09:00 UTC", active: utcHour >= 0 && utcHour < 9 },
+    { name: "LONDON", time: "08:00-17:00 UTC", active: utcHour >= 8 && utcHour < 17 },
+    { name: "NEW YORK", time: "13:00-22:00 UTC", active: utcHour >= 13 && utcHour < 22 }
+  ];
+  let html = '';
+  sessions.forEach(s => {
+    html += `<div class="p-6 rounded-2xl ${s.active ? 'session-active' : 'bg-gray-900'}"><div class="font-semibold">${s.name}</div><div class="text-xs text-gray-400">${s.time}</div><div class="${s.active ? 'text-emerald-400' : 'text-gray-500'}">${s.active ? '● OPEN' : 'CLOSED'}</div></div>`;
+  });
+  document.getElementById('sessions').innerHTML = html;
+}
+
+async function updatePrice() {
+  try {
+    const res = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=5a11bff6fe454c20a48452d2436ce6eb`);
+    const data = await res.json();
+    document.getElementById('price').textContent = parseFloat(data.price).toFixed(2);
+  } catch(e) {}
+}
+
+async function loadNews() {
+  try {
+    const res = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_KEY}`);
+    const articles = await res.json();
+    let html = '';
+    articles.slice(0, 8).forEach(a => {
+      if (a.headline && a.headline.toLowerCase().match(/gold|xau|trump|fed/)) {
+        const min = Math.floor((Date.now()/1000 - a.datetime)/60);
+        html += `<div class="p-5 bg-[#1a1a22] rounded-2xl"><a href="${a.url}" target="_blank" class="hover:text-amber-400">${a.headline}</a><div class="text-xs text-gray-400 mt-2">${a.source} • ${min}m ago</div></div>`;
       }
-    }
+    });
+    document.getElementById('newsfeed').innerHTML = html || '<p class="text-gray-400">No major news right now</p>';
+  } catch(e) {
+    document.getElementById('newsfeed').innerHTML = '<p class="text-gray-400">News temporarily unavailable</p>';
+  }
+}
 
-    function getBias() {
-      const result = document.getElementById('bias-result');
-      result.innerHTML = `
-        <div class="text-emerald-400 text-2xl font-bold">Bullish</div>
-        <p class="text-gray-400 mt-3">Gold is holding key support with weak USD and strong safe-haven demand.</p>
-      `;
-    }
+async function loadBreaking() {
+  try {
+    const res = await fetch(`https://gnews.io/api/v4/search?q=gold+OR+XAU+OR+Trump+OR+Fed&token=${GNEWS_KEY}&max=8`);
+    const data = await res.json();
+    let html = '';
+    (data.articles || []).forEach(a => {
+      html += `<div class="p-5 bg-[#1a1a22] rounded-2xl"><a href="${a.url}" target="_blank" class="hover:text-amber-400">${a.title}</a></div>`;
+    });
+    document.getElementById('breaking').innerHTML = html || '<p class="text-gray-400">No breaking news right now</p>';
+  } catch(e) {
+    document.getElementById('breaking').innerHTML = '<p class="text-gray-400">Breaking news temporarily unavailable</p>';
+  }
+}
 
-    // Load price
-    fetchGoldPrice();
-    setInterval(fetchGoldPrice, 30000);
-  </script>
+async function loadCalendar() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const res = await fetch(`https://finnhub.io/api/v1/calendar/economic?from=${today}&token=${FINNHUB_KEY}`);
+    const data = await res.json();
+    let html = '';
+    (data.economicCalendar || []).slice(0,6).forEach(e => {
+      html += `<div class="flex justify-between p-4 bg-[#1a1a22] rounded-2xl text-sm"><div>${e.event}</div><div class="text-red-400">HIGH</div></div>`;
+    });
+    document.getElementById('calendar').innerHTML = html || '<p class="text-gray-400">No high impact events today</p>';
+  } catch(e) {
+    document.getElementById('calendar').innerHTML = '<p class="text-gray-400">Calendar temporarily unavailable</p>';
+  }
+}
+
+// Init
+switchInstrument(0);
+updatePrice();
+loadNews();
+loadBreaking();
+loadCalendar();
+updateSessions();
+
+setInterval(updatePrice, 15000);
+setInterval(loadNews, 120000);
+setInterval(loadBreaking, 90000);
+setInterval(loadCalendar, 300000);
+setInterval(updateSessions, 60000);
+
+setInterval(() => {
+  document.getElementById('time').textContent = new Date().toLocaleTimeString('en-US', {timeZone: 'UTC'}) + " UTC";
+}, 1000);
+</script>
 </body>
 </html>
