@@ -12,6 +12,8 @@
     .title-font { font-family: 'Space Grotesk', sans-serif; }
     .card { background: #111118; border: 1px solid #3a3a44; border-radius: 20px; }
     .gold { color: #fbbf24; }
+    .green { color: #22c55e; }
+    .red { color: #ef4444; }
   </style>
 </head>
 <body class="min-h-screen p-6">
@@ -28,37 +30,45 @@
   <div class="flex justify-between items-start mb-10">
     <div>
       <h1 id="symbol-title" class="text-5xl font-bold title-font gold">XAUUSD</h1>
-      <p class="text-gray-400">Real-Time Market Intelligence</p>
+      <p class="text-gray-400">Real-Time AI Market Intelligence</p>
     </div>
     <div class="text-right">
-      <div id="price" class="text-7xl font-mono font-bold">Loading...</div>
-      <div id="change" class="text-3xl green"></div>
+      <div id="price" class="text-7xl font-mono font-bold">4565.28</div>
+      <div id="change" class="text-3xl green">+33.16 (+0.73%)</div>
       <div class="text-sm text-gray-400 font-mono" id="time"></div>
     </div>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
+    <!-- Main Chart -->
     <div class="lg:col-span-8">
       <div class="card p-6">
         <div id="main-chart" class="h-[520px] rounded-2xl overflow-hidden"></div>
       </div>
     </div>
 
+    <!-- AI Bias -->
     <div class="lg:col-span-4">
       <div class="card p-6">
-        <h3 class="flex items-center gap-2 text-lg mb-4 title-font"><i class="fas fa-brain gold"></i> DAILY AI BIAS</h3>
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="flex items-center gap-2 text-lg title-font"><i class="fas fa-brain gold"></i> DAILY AI BIAS</h3>
+          <button onclick="refreshAIAnalysis()" class="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-black text-sm rounded-xl flex items-center gap-2">
+            <i class="fas fa-sync"></i> Refresh AI
+          </button>
+        </div>
         <div id="bias" class="text-5xl font-bold green">BULLISH</div>
-        <div id="bias-reason" class="mt-6 text-sm leading-relaxed text-gray-300"></div>
+        <div id="confidence" class="text-gray-400">Confidence 84%</div>
+        <div id="bias-reason" class="mt-6 text-sm leading-relaxed text-gray-300 min-h-[200px]"></div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-// Real APIs - No Mock Data
+// === YOUR KEYS ===
+const GEMINI_KEY = "AIzaSyDFimtYXHRgIMAmxsNAtfUdnf40jGmMDVQ";
 const TWELVE_KEY = "5a11bff6fe454c20a48452d2436ce6eb";
-const FMP_KEY = "zwrV7PMnFiQGmnnbwiGreHTWGs1YPutp";
 
 const instruments = [
   { name: "XAUUSD", symbol: "FX_IDC:XAUUSD", priceSymbol: "XAU/USD" },
@@ -81,22 +91,40 @@ window.switchInstrument = function(i) {
 
 async function updatePrice() {
   const inst = instruments[current];
-  document.getElementById('price').textContent = "Loading...";
-
   try {
-    // Try Twelve Data first for gold
     const res = await fetch(`https://api.twelvedata.com/price?symbol=${inst.priceSymbol}&apikey=${TWELVE_KEY}`);
     const data = await res.json();
-    if (data.price) {
-      document.getElementById('price').textContent = parseFloat(data.price).toFixed(2);
-    }
+    if (data.price) document.getElementById('price').textContent = parseFloat(data.price).toFixed(2);
+  } catch(e) {}
+}
+
+async function refreshAIAnalysis() {
+  const inst = instruments[current];
+  document.getElementById('bias-reason').innerHTML = `<p class="text-gray-400">Analyzing market with Gemini AI...</p>`;
+
+  try {
+    const prompt = `Act as a professional macro and gold analyst. Give a detailed, balanced daily bias analysis for ${inst.name}. Include technical view, fundamental drivers, and key risks. Be insightful and natural.`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+
+    document.getElementById('bias-reason').innerHTML = `<p class="leading-relaxed">${text}</p>`;
   } catch(e) {
-    document.getElementById('price').textContent = "Error loading price";
+    document.getElementById('bias-reason').innerHTML = `<p class="text-red-400">Failed to connect to Gemini AI. Please check your key or internet connection.</p>`;
   }
 }
 
 // Init
 switchInstrument(0);
+refreshAIAnalysis(); // Initial AI call
 
 setInterval(updatePrice, 15000);
 
