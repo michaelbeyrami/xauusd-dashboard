@@ -1,193 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AURUM • Market Intelligence</title>
-    <script src="tailwindcss.com"></script>
-    <link rel="stylesheet" href="cloudflare.com">
-    <style>
-        @import url('googleapis.com');
-        body { font-family: 'Inter', system-ui, sans-serif; background: #0a0a0f; color: #e5e5e5; }
-        .title-font { font-family: 'Space Grotesk', sans-serif; }
-        .card { background: #111118; border: 1px solid #3a3a44; border-radius: 20px; }
-        .gold { color: #fbbf24; }
-        .green { color: #22c55e; }
-        .red { color: #ef4444; }
-    </style>
-</head>
-<body class="min-h-screen p-6">
-    <div class="max-w-screen-2xl mx-auto">
-        <!-- Asset Switch Navigation Buttons -->
-        <div class="flex gap-3 mb-8 flex-wrap">
-            <button id="btn-0" onclick="switchInstrument(0)" class="px-6 py-3 rounded-2xl bg-amber-400 text-black font-semibold transition-colors">XAUUSD Gold</button>
-            <button id="btn-1" onclick="switchInstrument(1)" class="px-6 py-3 rounded-2xl text-gray-400 hover:bg-amber-400/20 transition-colors">XAGUSD Silver</button>
-            <button id="btn-2" onclick="switchInstrument(2)" class="px-6 py-3 rounded-2xl text-gray-400 hover:bg-amber-400/20 transition-colors">NAS100</button>
-            <button id="btn-3" onclick="switchInstrument(3)" class="px-6 py-3 rounded-2xl text-gray-400 hover:bg-amber-400/20 transition-colors">SPX500</button>
-        </div>
+import streamlit as st
+import google.generativeai as genai
+import requests
+import pandas as pd
 
-        <!-- Header Pricing Information Grid Components -->
-        <div class="flex justify-between items-start mb-10">
-            <div>
-                <h1 id="symbol-title" class="text-5xl font-bold title-font gold">XAUUSD</h1>
-                <p class="text-gray-400">Real-Time AI Market Intelligence</p>
-            </div>
-            <div class="text-right">
-                <div id="price" class="text-7xl font-mono font-bold text-white">Syncing...</div>
-                <div id="change" class="text-3xl font-mono font-medium">--</div>
-                <div class="text-sm text-gray-400 font-mono mt-1" id="time"></div>
-            </div>
-        </div>
+# --- CONFIGURATION ---
+st.set_page_config(layout="wide", page_title="XAUUSD AI Terminal")
 
-        <!-- Visual Analytics Main Frame Elements Layout -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="lg:col-span-8">
-                <div class="card p-6">
-                    <div id="main-chart" class="h-[520px] rounded-2xl overflow-hidden"></div>
-                </div>
-            </div>
-            <div class="lg:col-span-4">
-                <div class="card p-6">
-                    <div class="flex justify-between mb-4">
-                        <h3 class="flex items-center gap-2 text-lg title-font"><i class="fas fa-brain gold"></i> DAILY AI BIAS</h3>
-                        <button onclick="refreshAIAnalysis()" class="px-5 py-2 bg-amber-400 hover:bg-amber-300 text-black rounded-xl text-sm font-medium transition-colors">
-                            Refresh AI Analysis
-                        </button>
-                    </div>
-                    <div id="bias" class="text-5xl font-bold text-white">--</div>
-                    <div id="confidence" class="text-gray-400">Processing live trends...</div>
-                    <div id="bias-reason" class="mt-6 text-sm leading-relaxed text-gray-300 min-h-[200px]"></div>
-                </div>
-            </div>
-        </div>
-    </div>
+# API Keys (Ideally move these to st.secrets or .env)
+GEMINI_KEY = "AIzaSyDFimtYXHRgIMAmxsNAtfUdnf40jGmMDVQ"
+TWELVE_DATA_KEY = "5a11bff6fe454c20a48452d2436ce6eb"
 
-    <script>
-        // === VERIFIED ACTIVE KEY AND DATA STRUCTS ===
-        const GEMINI_KEY = "AIzaSyDFimtYXHRgIMAmxsNAtfUdnf40jGmMDVQ";
+genai.configure(api_key=GEMINI_KEY)
 
-        const instruments = [
-            { name: "XAUUSD", symbol: "FX_IDC:XAUUSD", fallbackPrice: 2345.50 },
-            { name: "XAGUSD", symbol: "FX_IDC:XAGUSD", fallbackPrice: 28.15 },
-            { name: "NAS100", symbol: "NASDAQ:NDX", fallbackPrice: 18120.25 },
-            { name: "SPX500", symbol: "CBOE:SPX", fallbackPrice: 5180.60 }
-        ];
+# --- FUNCTIONS ---
+def get_gold_data():
+    """Fetch current Gold price and last 24h context."""
+    url = f"https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=1h&apikey={TWELVE_DATA_KEY}&outputsize=24"
+    res = requests.get(url).json()
+    if "values" in res:
+        return pd.DataFrame(res['values'])
+    return None
 
-        let current = 0;
-        let updateInterval;
+def get_ai_analysis(df):
+    """Feeds market data to Gemini for Bias and Levels."""
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # Convert dataframe to a text summary for the AI
+    data_summary = df.to_string()
+    
+    prompt = f"""
+    You are an expert XAUUSD gold trader. Based on this last 24h of H1 data:
+    {data_summary}
+    
+    Provide a professional analysis:
+    1. **Intraday Bias**: (Bullish/Bearish/Neutral)
+    2. **Key Levels**: Identify 2 Support and 2 Resistance levels.
+    3. **Strategy**: A one-sentence execution plan.
+    Keep it concise and clinical.
+    """
+    response = model.generate_content(prompt)
+    return response.text
 
-        window.switchInstrument = function(i) {
-            current = i;
-            const inst = instruments[i];
-            
-            // Re-render button active layout designs 
-            instruments.forEach((_, idx) => {
-                const btn = document.getElementById(`btn-${idx}`);
-                if (idx === i) {
-                    btn.className = "px-6 py-3 rounded-2xl bg-amber-400 text-black font-semibold transition-colors";
-                } else {
-                    btn.className = "px-6 py-3 rounded-2xl text-gray-400 hover:bg-amber-400/20 transition-colors";
-                }
-            });
+# --- UI LAYOUT ---
+st.title("🏆 XAUUSD AI Intelligence Dashboard")
 
-            document.getElementById('symbol-title').textContent = inst.name;
-            document.getElementById('main-chart').innerHTML = `<iframe src="tradingview.com{inst.symbol}&interval=15&theme=dark&style=1" width="100%" height="520" frameborder="0" allowfullscreen></iframe>`;
-            
-            // Execute synchronous update hooks
-            fetchMarketData();
-            clearInterval(updateInterval);
-            updateInterval = setInterval(fetchMarketData, 20000); 
-            
-            refreshAIAnalysis();
-        };
+col1, col2 = st.columns([3, 1])
 
-        async function fetchMarketData() {
-            const inst = instruments[current];
-            try {
-                // Public open access dashboard stream logic metrics
-                const res = await fetch('er-api.com');
-                const data = await res.json();
-                
-                let currentVal = inst.fallbackPrice;
-                
-                if (data && data.rates) {
-                    if (inst.name === "XAUUSD" && data.rates.XAU) {
-                        currentVal = (1 / data.rates.XAU);
-                    } else if (inst.name === "XAGUSD" && data.rates.XAG) {
-                        currentVal = (1 / data.rates.XAG);
-                    } else {
-                        // Apply live micro fluctuations for equity data simulation on frontend components
-                        currentVal = inst.fallbackPrice + (Math.random() * 4 - 2);
-                    }
-                }
+with col1:
+    st.subheader("Live TradingView Chart")
+    # Professional TradingView Widget
+    st.components.v1.html("""
+        <div id="tv-chart" style="height:600px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+        <script type="text/javascript">
+        new TradingView.widget({
+          "autosize": true, "symbol": "OANDA:XAUUSD", "interval": "15",
+          "timezone": "Etc/UTC", "theme": "dark", "style": "1",
+          "locale": "en", "enable_publishing": false, "container_id": "tv-chart"
+        });
+        </script>
+    """, height=610)
 
-                // Inject metrics directly into Document Object Model safely
-                document.getElementById('price').textContent = currentVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                
-                const changeEl = document.getElementById('change');
-                changeEl.className = "text-3xl font-mono font-medium green";
-                changeEl.textContent = "+0.84% (Today)";
-                
-                document.getElementById('time').textContent = `LIVE FEED STATUS: OK • ${new Date().toLocaleTimeString()}`;
+with col2:
+    st.subheader("🤖 Gemini AI Bias")
+    if st.button("Refresh AI Analysis"):
+        data = get_gold_data()
+        if data is not None:
+            analysis = get_ai_analysis(data)
+            st.markdown(analysis)
+        else:
+            st.error("Could not fetch market data. Check Twelve Data Key.")
+    else:
+        st.info("Click the button above to run AI analysis on the current price action.")
 
-            } catch (err) {
-                console.error("CORS bypass failed, using structural fallback matrix data:", err);
-                document.getElementById('price').textContent = inst.fallbackPrice.toLocaleString();
-            }
-        }
-
-        async function refreshAIAnalysis() {
-            const inst = instruments[current];
-            const result = document.getElementById('bias-reason');
-            const biasEl = document.getElementById('bias');
-            const confEl = document.getElementById('confidence');
-            
-            result.innerHTML = `<p class="text-yellow-400 animate-pulse"><i class="fas fa-spinner fa-spin mr-2"></i>Running market configurations via Gemini neural network...</p>`;
-            
-            try {
-                const prompt = `Act as an elite algorithmic hedge fund macro trader. Output a concise 3-paragraph market trend report for ${inst.name}. 
-                Paragraph 1: State clear direction stance (Bullish, Bearish, or Neutral).
-                Paragraph 2: Key immediate pivot, support, and resistance structures to monitor.
-                Paragraph 3: Core macroeconomic or sentiment catalyst driving this view.
-                Keep it highly concise and professional. Begin your text response directly without headers.`;
-
-                const response = await fetch(`googleapis.com{GEMINI_KEY}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                
-                const data = await response.json();
-                
-                // FIXED PARSING PIPELINE MATCHING NATIVE GOOGLE SCHEMA ARRAYS
-                if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-                    const text = data.candidates[0].content.parts[0].text;
-                    result.innerHTML = `<p class="leading-relaxed text-gray-300 font-normal">${text.replace(/\n/g, '<br>')}</p>`;
-                    
-                    const uppercaseText = text.toUpperCase();
-                    if (uppercaseText.includes("BULLISH")) {
-                        biasEl.textContent = "BULLISH";
-                        biasEl.className = "text-5xl font-bold green";
-                        confEl.textContent = "Confidence Score: 87% (High Probability)";
-                    } else if (uppercaseText.includes("BEARISH")) {
-                        biasEl.textContent = "BEARISH";
-                        biasEl.className = "text-5xl font-bold red";
-                        confEl.textContent = "Confidence Score: 81% (Elevated Risk)";
-                    } else {
-                        biasEl.textContent = "NEUTRAL";
-                        biasEl.className = "text-5xl font-bold text-amber-400";
-                        confEl.textContent = "Confidence Score: Mid-Range Consolidation";
-                    }
-                } else {
-                    result.innerHTML = `<p class="text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i>Gemini object mapping extraction failed. Check API dashboard status.</p>`;
-                }
-            } catch (err) {
-                result.innerHTML = `<p class="text-red-400"><i class="fas fa-wifi mr-2"></i>Network transport failed.<br>${err.message}</p>`;
-            }
-        }
-
-        // Bootstrapping execution cycle configuration hook
-        switchInstrument(0);
-    </script>
-</body>
-</html>
+st.markdown("---")
+st.caption("Data provided by Twelve Data & Analysis by Google Gemini 1.5 Flash.")
